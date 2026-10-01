@@ -2,6 +2,17 @@
 
 *Plato* is a document reader for *Kobo*'s e-readers.
 
+> **Disclaimer / 声明**
+> Portions of the code and documentation in this fork were generated with
+> the help of the **Qwen3.8** and **DeepSeek-4.1f** language models.
+> The author has verified that the shipped image works on his own devices,
+> but makes **no warranty** about safety or reliability on other devices or
+> firmwares; install at your own risk.
+>
+> 本分支的部分代码与文档由 **Qwen3.8** 与 **DeepSeek-4.1f** 模型辅助生成。
+> 开发者仅在自己的设备上验证过镜像可用,**不保证**在其他设备/固件上的
+> 安全性与可靠性,安装风险自负。
+
 ## Quick Reading / 快速阅读(Perception Expander / 感知扩展器)
 
 This fork adds a **Perception Expander** overlay (port of KOReader's
@@ -19,6 +30,8 @@ margin 5–30%, intensity 1–10, shift every 25/50/100/200/400 pages
 **Kobo 用户直接装现成一键包**:Releases → `OCP-Plato-0.9.45-PE.zip` →
 按 NiLuJe 原版 install.sh 流程安装(见 Release 正文链接)。
 构建复现:`./docker-build.sh`(容器内交叉编译,glibc ≤2.18 产物);部署:`./deploy-kobo.sh`。
+
+![Perception Expander on a Kobo](artworks/perception-expander.webp)
 
 Documentation: [GUIDE](doc/GUIDE.md), [MANUAL](doc/MANUAL.md) and [BUILD](doc/BUILD.md).
 
@@ -49,24 +62,6 @@ Any 4.*X*.*Y* firmware, with *X* ≥ 6, will do.
 - *Glo*.
 - *Touch C*.
 - *Touch B*.
-
-## Supported formats
-
-- PDF, CBZ, FB2, MOBI, XPS and TXT via [MuPDF](https://mupdf.com/index.html).
-- ePUB through a built-in renderer.
-- DJVU via [DjVuLibre](http://djvu.sourceforge.net/index.html).
-
-## Features
-
-- Crop the margins.
-- Continuous fit-to-width zoom mode with line preserving cuts.
-- Rotate the screen (portrait ↔ landscape).
-- Adjust the contrast.
-- Define words using *dictd* dictionaries.
-- Annotations, highlights and bookmarks.
-- Retrieve articles from online sources through [hooks](doc/HOOKS.md) (an example *wallabag* [article fetcher](doc/ARTICLE_FETCHER.md) is provided).
-
-[![Tn01](artworks/thumbnail01.png)](artworks/screenshot01.png) [![Tn02](artworks/thumbnail02.png)](artworks/screenshot02.png) [![Tn03](artworks/thumbnail03.png)](artworks/screenshot03.png) [![Tn04](artworks/thumbnail04.png)](artworks/screenshot04.png)
 
 ## Donations
 
