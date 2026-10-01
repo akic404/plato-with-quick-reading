@@ -561,6 +561,12 @@ pub fn run() -> Result<(), Error> {
                     }
                 }
             },
+            Event::PeStateChanged(margin, page_counter) => {
+                context.settings.perception_expander.margin = margin;
+                context.settings.perception_expander.page_counter = page_counter;
+                let path = Path::new(SETTINGS_PATH);
+                save_toml(&context.settings, path).map_err(|e| eprintln!("Can't save settings: {:#}.", e)).ok();
+            },
             Event::PrepareSuspend => {
                 tasks.retain(|task| task.id != TaskId::PrepareSuspend);
                 wait_for_all(&mut updating, &mut context);

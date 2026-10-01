@@ -39,6 +39,7 @@ pub mod home;
 pub mod reader;
 pub mod dictionary;
 pub mod calculator;
+pub mod perception_expander;
 pub mod sketch;
 pub mod touch_events;
 pub mod rotation_values;
@@ -363,6 +364,7 @@ pub enum Event {
     Reseed,
     Back,
     Quit,
+    PeStateChanged(f32, i32),
     WakeUp,
 }
 
@@ -436,6 +438,7 @@ pub enum ViewId {
     TableOfContents,
     MessageNotif(Id),
     SubMenu(u8),
+    PerceptionExpander,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -568,6 +571,11 @@ pub enum EntryId {
     ToggleWifi,
     Rotate(i8),
     Launch(AppCmd),
+    TogglePerceptionExpander,
+    SetPeLineThickness(i32),
+    SetPeMargin(i32),
+    SetPeIntensity(i32),
+    SetPeShiftEachPages(i32),
     SetPenSize(i32),
     SetPenColor(Color),
     TogglePenDynamism,

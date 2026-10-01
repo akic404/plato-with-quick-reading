@@ -201,6 +201,19 @@ margin-width = 2
 # The number of remembered inputs.
 history-size = 4_096
 
+[perception-expander]
+# Draw two vertical lines inside the reading area, like KOReader's Perception Expander.
+enabled = false
+# The thickness of the lines, in pixels.
+line-thickness = 2
+# The distance of the lines from the edges of the screen, as a ratio of the screen's width.
+margin = 0.1
+# The darkness of the lines, from 1 (light gray) to 10 (black).
+intensity = 3
+# Shift the lines towards the center of the screen every `shift-each-pages` page turns.
+# The shift stops when the margin reaches 0.37. *Zero* means *never*.
+shift-each-pages = 100
+
 [battery]
 # Warn about the battery level being low, when the level
 # goes below `warn` percents.

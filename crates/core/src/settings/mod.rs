@@ -123,6 +123,7 @@ pub struct Settings {
     pub dictionary: DictionarySettings,
     pub sketch: SketchSettings,
     pub calculator: CalculatorSettings,
+    pub perception_expander: PerceptionExpanderSettings,
     pub battery: BatterySettings,
     pub frontlight_levels: LightLevels,
 }
@@ -209,6 +210,17 @@ pub struct CalculatorSettings {
     pub history_size: usize,
 }
 
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct PerceptionExpanderSettings {
+    pub enabled: bool,
+    pub line_thickness: i32,
+    pub margin: f32,
+    pub intensity: i32,
+    pub shift_each_pages: i32,
+    pub page_counter: i32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
 pub struct Pen {
@@ -249,6 +261,19 @@ impl Default for CalculatorSettings {
             font_size: 8.0,
             margin_width: 2,
             history_size: 4096,
+        }
+    }
+}
+
+impl Default for PerceptionExpanderSettings {
+    fn default() -> Self {
+        PerceptionExpanderSettings {
+            enabled: false,
+            line_thickness: 2,
+            margin: 0.1,
+            intensity: 3,
+            shift_each_pages: 100,
+            page_counter: 0,
         }
     }
 }
@@ -548,6 +573,7 @@ impl Default for Settings {
             dictionary: DictionarySettings::default(),
             sketch: SketchSettings::default(),
             calculator: CalculatorSettings::default(),
+            perception_expander: PerceptionExpanderSettings::default(),
             battery: BatterySettings::default(),
             frontlight_levels: LightLevels::default(),
             frontlight_presets: Vec::new(),

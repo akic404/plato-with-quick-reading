@@ -9,7 +9,7 @@ use std::thread;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering as AtomicOrdering;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::io::prelude::*;
 use std::fs::OpenOptions;
 use std::collections::{VecDeque, BTreeMap};
@@ -37,6 +37,7 @@ use self::results_bar::ResultsBar;
 use crate::view::common::{locate, rlocate, locate_by_id};
 use crate::view::common::{toggle_main_menu, toggle_battery_menu, toggle_clock_menu};
 use crate::view::filler::Filler;
+use crate::view::perception_expander::PerceptionExpander;
 use crate::view::named_input::NamedInput;
 use crate::view::search_bar::SearchBar;
 use crate::view::keyboard::Keyboard;
@@ -44,6 +45,7 @@ use crate::view::menu::{Menu, MenuKind};
 use crate::view::menu_entry::MenuEntry;
 use crate::view::notification::Notification;
 use crate::settings::{guess_frontlight, FinishedAction, SouthEastCornerAction, BottomRightGestureAction, SouthStripAction, WestStripAction, EastStripAction};
+use crate::settings::SETTINGS_PATH;
 use crate::settings::{DEFAULT_FONT_FAMILY, DEFAULT_TEXT_ALIGN, DEFAULT_LINE_HEIGHT, DEFAULT_MARGIN_WIDTH};
 use crate::settings::{HYPHEN_PENALTY, STRETCH_TOLERANCE};
 use crate::frontlight::LightLevels;
@@ -205,6 +207,12 @@ fn build_pixmap(rect: &Rectangle, doc: &mut dyn Document, location: usize) -> (P
     doc.pixmap(Location::Exact(location), scale, CURRENT_DEVICE.color_samples()).unwrap()
 }
 
+fn save_pe_settings(context: &Context) {
+    use crate::helpers::save_toml;
+    save_toml(&context.settings, Path::new(SETTINGS_PATH))
+        .map_err(|e| eprintln!("Can't save settings: {:#}.", e)).ok();
+}
+
 fn find_cut(frame: &Rectangle, y_pos: i32, scale: f32, dir: LinearDir, lines: &[BoundedText]) -> Option<i32> {
     let y_pos_u = y_pos as f32 / scale;
     let frame_u = frame.to_boundary() / scale;
@@ -362,7 +370,7 @@ impl Reader {
 
             hub.send(Event::Update(UpdateMode::Partial)).ok();
 
-            Some(Reader {
+            let mut reader = Reader {
                 id,
                 rect,
                 children: Vec::new(),
@@ -390,7 +398,16 @@ impl Reader {
                 ephemeral: false,
                 reflowable,
                 finished: false,
-            })
+            };
+
+            if context.settings.perception_expander.enabled {
+                let pes = &context.settings.perception_expander;
+                let pe = PerceptionExpander::new(rect, pes.line_thickness, pes.margin, pes.intensity,
+                                                 pes.shift_each_pages, pes.page_counter);
+                reader.children.push(Box::new(pe) as Box<dyn View>);
+            }
+
+            Some(reader)
         })
     }
 
@@ -427,7 +444,7 @@ impl Reader {
 
         hub.send(Event::Update(UpdateMode::Partial)).ok();
 
-        Reader {
+        let mut reader = Reader {
             id,
             rect,
             children: Vec::new(),
@@ -455,7 +472,16 @@ impl Reader {
             ephemeral: true,
             reflowable: true,
             finished: false,
+        };
+
+        if context.settings.perception_expander.enabled {
+            let pes = &context.settings.perception_expander;
+            let pe = PerceptionExpander::new(rect, pes.line_thickness, pes.margin, pes.intensity,
+                                             pes.shift_each_pages, pes.page_counter);
+            reader.children.push(Box::new(pe) as Box<dyn View>);
         }
+
+        reader
     }
 
     fn load_pixmap(&mut self, location: usize) {
@@ -1038,6 +1064,16 @@ impl Reader {
 
     fn update(&mut self, update_mode: Option<UpdateMode>, hub: &Hub, rq: &mut RenderQueue, context: &Context) {
         self.page_turns += 1;
+
+        if context.settings.perception_expander.enabled {
+            if let Some(index) = locate_by_id(self, ViewId::PerceptionExpander) {
+                if let Some(pe) = self.children[index].downcast_mut::<PerceptionExpander>() {
+                    if pe.note_page_turn() {
+                        hub.send(Event::PeStateChanged(pe.margin(), pe.page_counter())).ok();
+                    }
+                }
+            }
+        }
         let update_mode = update_mode.unwrap_or_else(|| {
             let pair = context.settings.reader.refresh_rate.by_kind
                                        .get(&self.info.file.kind)
@@ -1865,6 +1901,35 @@ impl Reader {
             entries.push(EntryKind::CheckBox("Apply Dithering".to_string(),
                                              EntryId::ToggleDithered,
                                              context.fb.dithered()));
+
+            let (pe_enabled, pe_thickness, pe_margin, pe_intensity, pe_shift) = {
+                let pes = &context.settings.perception_expander;
+                (pes.enabled, pes.line_thickness, pes.margin, pes.intensity, pes.shift_each_pages)
+            };
+            entries.push(EntryKind::Separator);
+            entries.push(EntryKind::CheckBox("Perception Expander".to_string(),
+                                             EntryId::TogglePerceptionExpander,
+                                             pe_enabled));
+            entries.push(EntryKind::SubMenu("Line Thickness".to_string(),
+                             (1..=4).map(|t| EntryKind::RadioButton(format!("{} px", t),
+                                           EntryId::SetPeLineThickness(t),
+                                           t == pe_thickness)).collect()));
+            entries.push(EntryKind::SubMenu("Line Margin".to_string(),
+                             [5, 10, 15, 20, 25, 30].iter().map(|m| {
+                                 EntryKind::RadioButton(format!("{}%", m),
+                                               EntryId::SetPeMargin(*m),
+                                               (pe_margin * 100.0 - *m as f32).abs() < 0.5)
+                             }).collect()));
+            entries.push(EntryKind::SubMenu("Line Intensity".to_string(),
+                             (1..=10).map(|v| EntryKind::RadioButton(format!("{}", v),
+                                           EntryId::SetPeIntensity(v),
+                                           v == pe_intensity)).collect()));
+            entries.push(EntryKind::SubMenu("Shift Each Pages".to_string(),
+                             [0, 25, 50, 100, 200, 400].iter().map(|n| {
+                                 EntryKind::RadioButton(if *n == 0 { "Off".to_string() } else { n.to_string() },
+                                               EntryId::SetPeShiftEachPages(*n),
+                                               *n == pe_shift)
+                             }).collect()));
 
             let mut title_menu = Menu::new(rect, ViewId::TitleMenu, MenuKind::DropDown, entries, context);
             title_menu.child_mut(1)
@@ -3810,6 +3875,66 @@ impl View for Reader {
                 };
                 let notif = Notification::new(msg, hub, rq, context);
                 self.children.push(Box::new(notif) as Box<dyn View>);
+                true
+            },
+            Event::Select(EntryId::TogglePerceptionExpander) => {
+                let pes = &mut context.settings.perception_expander;
+                pes.enabled = !pes.enabled;
+                if pes.enabled {
+                    let pe = PerceptionExpander::new(*self.rect(), pes.line_thickness, pes.margin, pes.intensity,
+                                                     pes.shift_each_pages, pes.page_counter);
+                    rq.add(RenderData::new(pe.id(), *pe.rect(), UpdateMode::Partial));
+                    let index = locate_by_id(self, ViewId::TitleMenu).unwrap_or_else(|| self.children.len());
+                    self.children_mut().insert(index, Box::new(pe) as Box<dyn View>);
+                } else if let Some(index) = locate_by_id(self, ViewId::PerceptionExpander) {
+                    let rect = *self.child(index).rect();
+                    self.children_mut().remove(index);
+                    rq.add(RenderData::new(self.id, rect, UpdateMode::Partial));
+                }
+                save_pe_settings(context);
+                true
+            },
+            Event::Select(EntryId::SetPeLineThickness(t)) => {
+                context.settings.perception_expander.line_thickness = t;
+                if let Some(index) = locate_by_id(self, ViewId::PerceptionExpander) {
+                    if let Some(pe) = self.children[index].downcast_mut::<PerceptionExpander>() {
+                        pe.set_line_thickness(t);
+                    }
+                    rq.add(RenderData::expose(*self.rect(), UpdateMode::Partial));
+                }
+                save_pe_settings(context);
+                true
+            },
+            Event::Select(EntryId::SetPeMargin(m)) => {
+                context.settings.perception_expander.margin = m as f32 / 100.0;
+                if let Some(index) = locate_by_id(self, ViewId::PerceptionExpander) {
+                    if let Some(pe) = self.children[index].downcast_mut::<PerceptionExpander>() {
+                        pe.set_margin(m as f32 / 100.0);
+                    }
+                    rq.add(RenderData::expose(*self.rect(), UpdateMode::Partial));
+                }
+                save_pe_settings(context);
+                true
+            },
+            Event::Select(EntryId::SetPeIntensity(i)) => {
+                context.settings.perception_expander.intensity = i;
+                if let Some(index) = locate_by_id(self, ViewId::PerceptionExpander) {
+                    if let Some(pe) = self.children[index].downcast_mut::<PerceptionExpander>() {
+                        pe.set_intensity(i);
+                    }
+                    rq.add(RenderData::expose(*self.rect(), UpdateMode::Partial));
+                }
+                save_pe_settings(context);
+                true
+            },
+            Event::Select(EntryId::SetPeShiftEachPages(n)) => {
+                context.settings.perception_expander.shift_each_pages = n;
+                if let Some(index) = locate_by_id(self, ViewId::PerceptionExpander) {
+                    if let Some(pe) = self.children[index].downcast_mut::<PerceptionExpander>() {
+                        pe.set_shift_each_pages(n);
+                    }
+                }
+                save_pe_settings(context);
                 true
             },
             Event::Select(EntryId::ApplyCroppings(index, scheme)) => {
